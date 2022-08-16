@@ -15,5 +15,7 @@ Os dados trabalhados aqui foram obtidos a partir da plataforma de dados do gover
 |POP2021_20220711.xls|[link](https://www.ibge.gov.br/estatisticas/sociais/populacao/9103-estimativas-de-populacao.html?=&t=resultados)|15/08/2022|
 |PIB dos Municбpios - base de dados 2010-2019.xls|[link](https://www.ibge.gov.br/estatisticas/economicas/contas-nacionais/9088-produto-interno-bruto-dos-municipios.html?=&t=downloads)|15/08/2022|
 
+OBS.: Importante reservar um espaço para pontuar sobre datas. Tanto os dados das UBS quanto os de população são de 2021, mais recentes nas plataformas oficiais. Todavia, não está disponível o PIB por estado para 2021 oficialmente na plataforma do IBGI, sendo 2019 o dado mais recente.
+
 # Status
 Projeto em andamento: repositório e registro de informações finalizado.
