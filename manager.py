@@ -1,16 +1,18 @@
 import sys
-from typing import Tuple
+import nltk
 import requests
+from typing import Tuple
 from dotenv import load_dotenv
 from src.models.base import Base
-from src.database.connection import get_engine, get_session
-from sqlalchemy.orm import Session
-from src.models.state import State
 from src.models.city import City
+from src.models.state import State
+from sqlalchemy.orm import Session
+from src.database.connection import get_engine, get_session
 
 
 def create_database():
     try:
+        nltk.download("rslp", quiet=True)
         Base.metadata.create_all(get_engine())
         print("Tabelas criadas com sucesso!")
 
@@ -32,6 +34,9 @@ def seed():
         # inicia conexão e chama os seeds especializados
         session = get_session()
         success, message = seed_states(session)
+        if not success: raise Exception(message)
+
+        success, message = seed_cities(session)
         if not success: raise Exception(message)
 
         # Executa as mudanças
@@ -67,6 +72,34 @@ def seed_states(session: Session) -> Tuple[bool, str]:
         session.add_all(states)
         return True, ""
     
+    except BaseException as e:
+        return False, str(e)
+
+
+def seed_cities(session: Session) -> Tuple[bool, str]:
+    try:
+        # Acessa estados para recuperar id IBGE e executar busca na API
+        states = session.query(State.ibge_state_id, State.id).all()
+        cities = []
+
+        for state in states:
+            url = f"http://servicodados.ibge.gov.br/api/v1/localidades/estados/{state.ibge_state_id}/municipios"
+            req = requests.get(url)
+            data = req.json()
+
+            # Adiciona um novo município para cadastro
+            for reg in data:
+                cities.append(City(
+                    state_id=state.id,
+                    name=reg["nome"],
+                    ibge_city_id=reg["id"],
+                    token=City.tokenize(reg["nome"])
+                ))
+        
+        # Envia para adição
+        session.add_all(cities)
+        return True, ""
+
     except BaseException as e:
         return False, str(e)
 
