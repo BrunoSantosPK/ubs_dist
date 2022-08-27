@@ -1,18 +1,16 @@
+import os
 import sys
 import nltk
-import requests
-from typing import Tuple
 from dotenv import load_dotenv
 from src.models.base import Base
-from src.models.city import City
-from src.models.state import State
-from sqlalchemy.orm import Session
+from src.load.ibge import add_cities, add_states
 from src.database.connection import get_engine, get_session
+from src.load.datasets import update_alter_city_id, update_city_geo,\
+    update_city_population, update_city_pib, update_city_area, load_ubs
 
 
 def create_database():
     try:
-        nltk.download("rslp", quiet=True)
         Base.metadata.create_all(get_engine())
         print("Tabelas criadas com sucesso!")
 
@@ -33,15 +31,18 @@ def seed():
     try:
         # inicia conexão e chama os seeds especializados
         session = get_session()
-        success, message = seed_states(session)
+        nltk.download("rslp", quiet=True)
+        print("Iniciando processo de carga inicial do banco de dados.")
+
+        success, message = add_states(session)
         if not success: raise Exception(message)
 
-        success, message = seed_cities(session)
+        success, message = add_cities(session)
         if not success: raise Exception(message)
 
         # Executa as mudanças
         session.commit()
-        print("Seed realizado com sucesso, seus dados foram carregados!")
+        print("O banco de dados foi preenchido com as informações base do IBGE!")
         
     except BaseException as e:
         print(str(e))
@@ -51,60 +52,63 @@ def seed():
         session.close()
 
 
-def seed_states(session: Session) -> Tuple[bool, str]:
+def feature_engineering(base_path: str):
     try:
-        # Acessa dados de estados a partir da API do IBGE
-        url = "http://servicodados.ibge.gov.br/api/v1/localidades/estados"
-        req = requests.get(url)
-        data = req.json()
+        # Inicia conexão e chama as funções de carga
+        session = get_session()
+        print("Iniciando processo de feature engineering.")
 
-        # Cria a lista para inserção
-        states = []
-        for reg in data:
-            states.append(State(
-                symbol=reg["sigla"],
-                name=reg["nome"],
-                ibge_state_id=reg["id"],
-                region=reg["regiao"]["sigla"]
-            ))
+        success, message = update_alter_city_id(session, base_path)
+        if not success: raise Exception(message)
 
-        # Envia para adição
-        session.add_all(states)
-        return True, ""
-    
-    except BaseException as e:
-        return False, str(e)
+        success, message = update_city_geo(session, base_path)
+        if not success: raise Exception(message)
 
+        success, message = update_city_population(session, base_path)
+        if not success: raise Exception(message)
 
-def seed_cities(session: Session) -> Tuple[bool, str]:
-    try:
-        # Acessa estados para recuperar id IBGE e executar busca na API
-        states = session.query(State.ibge_state_id, State.id).all()
-        cities = []
+        success, message = update_city_pib(session, base_path)
+        if not success: raise Exception(message)
 
-        for state in states:
-            url = f"http://servicodados.ibge.gov.br/api/v1/localidades/estados/{state.ibge_state_id}/municipios"
-            req = requests.get(url)
-            data = req.json()
+        success, message = update_city_area(session, base_path)
+        if not success: raise Exception(message)
 
-            # Adiciona um novo município para cadastro
-            for reg in data:
-                cities.append(City(
-                    state_id=state.id,
-                    name=reg["nome"],
-                    ibge_city_id=reg["id"],
-                    token=City.tokenize(reg["nome"])
-                ))
-        
-        # Envia para adição
-        session.add_all(cities)
-        return True, ""
+        success, message = load_ubs(session, base_path)
+        if not success: raise Exception(message)
+
+        session.commit()
+        print("Processo de feature engineering finalizado!")
 
     except BaseException as e:
-        return False, str(e)
+        print(str(e))
+        session.rollback()
+
+    finally:
+        session.close()
+
+
+def pipeline(base_path: str):
+    delete()
+    create_database()
+    seed()
+    feature_engineering(base_path)
 
 
 if __name__ == "__main__":
+    # Define path do projeto e carrega variáveis de ambiente
+    functions = ["delete", "create_database", "seed", "feature_engineering", "pipeline"]
+    base_path = os.path.dirname(os.path.abspath(__file__))
+    load_dotenv(f"{base_path}/config/.env")
+
+    # Faz a chamada da função passada como parâmetro
     args = sys.argv
-    load_dotenv("config/.env")
-    globals()[args[1]]()
+    if len(args) != 2:
+        raise Exception("Comando inválido, utilize sempre python manager.py <nome_da_funcao>.")
+
+    if args[1] not in functions:
+        raise Exception(f"Função não encontrada. Estão disponíveis: {', '.join(functions)}")
+
+    if args[1] in ["pipeline", "feature_engineering"]:
+        globals()[args[1]](base_path)
+    else:
+        globals()[args[1]]()

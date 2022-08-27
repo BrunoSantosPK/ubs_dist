@@ -2,7 +2,7 @@ import re
 import unicodedata
 from src.models.base import Base
 from nltk.stem import RSLPStemmer
-from sqlalchemy import Column, Integer, String, ForeignKey
+from sqlalchemy import Column, Integer, String, ForeignKey, Float
 
 
 class City(Base):
@@ -14,8 +14,10 @@ class City(Base):
     ibge_city_id = Column(Integer, nullable=False)
     data_city_id = Column(Integer, nullable=True)
     population = Column(Integer, nullable=True)
-    pib_billion = Column(Integer, nullable=True)
-    area = Column(Integer, nullable=True)
+    pib_billion = Column(Float, nullable=True)
+    area = Column(Float, nullable=True)
+    latitude = Column(Float, nullable=True)
+    longitude = Column(Float, nullable=True)
 
     @staticmethod
     def tokenize(text: str) -> str:
